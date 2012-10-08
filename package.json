@@ -1,0 +1,18 @@
+{
+  "author": "sh84",
+  "name": "file-log",
+  "description": "Extends node.js console to work with log file and log levels.",
+  "keywords": ["logging", "console.log"],
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/sh84/node-file-log.git"
+  },
+  "main": "log.js",
+  "dependencies": {},
+  "devDependencies": {},
+  "optionalDependencies": {},
+  "engines": {
+    "node": ">=0.8.0"
+  }
+}
