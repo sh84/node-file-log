@@ -8,7 +8,8 @@ const LOG_LEVELS = {
 	fatal :4
 };
 var log_level = 2;
-var stdout = null;
+var stdout;
+var filename;
 
 for (var name in LOG_LEVELS) {
 	console[name] = function(name) {
@@ -38,6 +39,7 @@ function addZero(val) {
 // All system error -> console.fatal
 process.on('uncaughtException', function(err) {
 	console.fatal('Uncaught exception:', (err.message || err), err.stack);
+	process.exit();
 });
 
 console.setLevel = function(level) {
@@ -56,6 +58,7 @@ console.setFile = function(file, callback) {
 			console.fatal('Log create', err);
 			callback(err);
 		}).addListener('open', function() {
+			filename = file;
 			process.__defineGetter__("stdout", function() {
 				return stdout;
 			});
@@ -70,5 +73,19 @@ console.setFile = function(file, callback) {
 	}
 	return console;
 };
+
+console.reopen = function(callback) {
+	if (stdout) {
+		stdout.end();
+		console.setFile(filename, function() {
+			stdout.write('[' + getTime() + '] Reopen log file by SIGUSR1\n');
+			if (callback) callback();
+		});
+	}
+};
+
+process.on('SIGUSR1', function() {
+	console.reopen();
+});
 
 module.exports = console;

@@ -1,9 +1,9 @@
 {
   "author": "sh84",
   "name": "file-log",
-  "description": "Extends node.js console to work with log file and log levels.",
-  "keywords": ["logging", "console.log"],
-  "version": "0.0.1",
+  "description": "Extends node.js console to work with log file, log levels and log reopen by signal.",
+  "keywords": ["log", "logging", "console.log", "logrotate"],
+  "version": "0.0.2",
   "repository": {
     "type": "git",
     "url": "git://github.com/sh84/node-file-log.git"
