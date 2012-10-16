@@ -29,11 +29,15 @@ function getTime() {
 	d = new Date();
 	return d.getFullYear() + '-' + addZero(d.getMonth() + 1) + '-' + addZero(d.getDate()) + ' ' + 
 		addZero(d.getHours()) + ':' + addZero(d.getMinutes()) + ':' + addZero(d.getSeconds()) + 
-		'.' +	d.getMilliseconds();
+		'.' + add2Zero(d.getMilliseconds());
 }
 
 function addZero(val) {
 	return (val >= 10) ? val : '0'+val;
+}
+
+function add2Zero(val) {
+	return (val >= 10) ? ((val >= 100) ? val : '0'+val) : '00'+val;
 }
 
 // All system error -> console.fatal
