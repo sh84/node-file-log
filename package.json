@@ -3,7 +3,7 @@
   "name": "file-log",
   "description": "Extends node.js console to work with log file, log levels and log reopen by signal.",
   "keywords": ["log", "logging", "console.log", "logrotate"],
-  "version": "0.0.2",
+  "version": "0.0.5",
   "repository": {
     "type": "git",
     "url": "git://github.com/sh84/node-file-log.git"

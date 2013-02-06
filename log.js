@@ -43,7 +43,13 @@ function add2Zero(val) {
 // All system error -> console.fatal
 process.on('uncaughtException', function(err) {
 	console.fatal('Uncaught exception:', (err.message || err), err.stack);
-	process.exit();
+	if (process.stdout.isTTY) {
+		process.exit();
+	} else {
+		process.stdout.end(null, null, function() {
+			process.exit();
+		});
+	}
 });
 
 console.setLevel = function(level) {
