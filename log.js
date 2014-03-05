@@ -19,7 +19,7 @@ for (var name in LOG_LEVELS) {
 
 function log(name, args) {
 	if (LOG_LEVELS[name] >= log_level) {
-		var s = '[' + getTime() + '] [' + name.toUpperCase() + '] ';
+		var s = '[' + getTime() + '] [' + name.toUpperCase() + '] ['+process.pid+'] ';
 		s += util.format.apply(util.format, args);
 		if (process.stdout.writable) process.stdout.write(s + '\n');
 	}
