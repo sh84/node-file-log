@@ -10,6 +10,7 @@ const LOG_LEVELS = {
 var log_level = 2;
 var stdout;
 var filename;
+var airbrake;
 
 for (var name in LOG_LEVELS) {
 	console[name] = function(name) {
@@ -42,17 +43,24 @@ function add2Zero(val) {
 
 // All system error -> console.fatal
 process.on('uncaughtException', function(err) {
-	console.fatal('Uncaught exception:', (err.message || err), err.stack);
-	if (process.stdout.isTTY) {
-		process.exit();
+	if (airbrake) {
+		airbrake._onError(err, true);
 	} else {
-		process.stdout.end(null, null, function() {
+		console.fatal('Uncaught exception:', (err.message || err), err.stack);
+		if (process.stdout.isTTY) {
 			process.exit();
-		});
+		} else {
+			process.stdout.end(null, null, function() {
+				process.exit();
+			});
+		}
 	}
 });
 
-console.setLevel = function(level) {
+console.setLevel = function(level, _airbrake) {
+	if (_airbrake && _airbrake.constructor.name == 'Airbrake') {
+		airbrake = _airbrake;
+	}
 	level = (level || '').toLowerCase();
 	assert(LOG_LEVELS[level] != null, 'Log level shoud be:'+Object.keys(LOG_LEVELS).join(', '));
 	log_level = LOG_LEVELS[level];
