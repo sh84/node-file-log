@@ -57,13 +57,17 @@ process.on('uncaughtException', function(err) {
 	}
 });
 
-console.setLevel = function(level, _airbrake) {
-	if (_airbrake && _airbrake.constructor.name == 'Airbrake') {
-		airbrake = _airbrake;
-	}
+console.setLevel = function(level) {
 	level = (level || '').toLowerCase();
 	assert(LOG_LEVELS[level] != null, 'Log level shoud be:'+Object.keys(LOG_LEVELS).join(', '));
 	log_level = LOG_LEVELS[level];
+	return console;
+};
+
+console.setAirbrake = function(_airbrake) {
+	if (_airbrake && _airbrake.constructor.name == 'Airbrake') {
+		airbrake = _airbrake;
+	}
 	return console;
 };
 
