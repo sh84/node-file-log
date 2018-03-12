@@ -1,113 +1,173 @@
-var fs = require('fs'), assert = require("assert"), util = require('util');
+const fs = require('fs'), assert = require("assert"), util = require('util');
 
 const LOG_LEVELS = {
-	debug: 0,
-	info: 1,
-	warn: 2,
-	error: 3,
-	fatal :4
+  debug: 0,
+  info: 1,
+  warn: 2,
+  error: 3,
+  fatal: 4
 };
-var log_level = 2;
-var stdout;
-var filename;
-var airbrake;
+let log_level = 2;
+let fd;
+let fd_uncork_timer;
+let fd_buffer_flush_time;
+let filename;
+let airbrake;
+let is_json_format = false;
 
-for (var name in LOG_LEVELS) {
-	console[name] = function(name) {
-		log(name, Array.prototype.slice.call(arguments, 1));
-	}.bind(this, name);
+for (let level in LOG_LEVELS) {
+  console[level] = (function(level) {
+    return function(...args) {
+      log(level, args);
+    };
+  })(level);
 } 
 
-function log(name, args) {
-	if (LOG_LEVELS[name] >= log_level) {
-		var s = '[' + getTime() + '] [' + name.toUpperCase() + '] ['+process.pid+'] ';
-		s += util.format.apply(util.format, args);
-		if (process.stdout.writable) process.stdout.write(s + '\n');
-	}
+function log(level, args) {
+  if (LOG_LEVELS[level] >= log_level) {
+    if (is_json_format) {
+      let obj = typeof args[0] === 'string' ? {msg: args[0]} : args[0];
+      obj['pid'] = process.pid;
+      obj['level'] = level.toUpperCase();
+      obj['time'] = getTime();
+      console.log_(JSON.stringify(obj));
+    } else {
+      let s = '[' + getTime() + '] [' + level.toUpperCase() + '] ['+process.pid+'] ';
+      console.log(s, args);
+    }
+  }
 }
 
 function getTime() {
-	d = new Date();
-	return d.getFullYear() + '-' + addZero(d.getMonth() + 1) + '-' + addZero(d.getDate()) + ' ' + 
-		addZero(d.getHours()) + ':' + addZero(d.getMinutes()) + ':' + addZero(d.getSeconds()) + 
-		'.' + add2Zero(d.getMilliseconds());
+  let d = new Date();
+  return d.getFullYear() + '-' + addZero(d.getMonth() + 1) + '-' + addZero(d.getDate()) + ' ' + 
+    addZero(d.getHours()) + ':' + addZero(d.getMinutes()) + ':' + addZero(d.getSeconds()) + 
+    '.' + add2Zero(d.getMilliseconds());
 }
 
 function addZero(val) {
-	return (val >= 10) ? val : '0'+val;
+  return val >= 10 ? val : '0'+val;
 }
 
 function add2Zero(val) {
-	return (val >= 10) ? ((val >= 100) ? val : '0'+val) : '00'+val;
+  return val >= 10 ? (val >= 100 ? val : '0'+val) : '00'+val;
 }
 
 // All system error -> console.fatal
 process.on('uncaughtException', function(err) {
-	if (airbrake) {
-		airbrake._onError(err, true);
-	} else {
-		console.fatal('Uncaught exception:', (err.message || err), err.stack);
-		if (process.stdout.isTTY) {
-			process.exit();
-		} else {
-			process.stdout.end(null, null, function() {
-				process.exit();
-			});
-		}
-	}
+  if (is_json_format) {
+    console.fatal({msg: 'Uncaught exception', error: err.message || err, stack: err.stack});
+  } else {
+    console.fatal('Uncaught exception:', err.message || err, err.stack);
+  }
+  if (airbrake) {
+    airbrake.notify(err, function(notify_err, url, devMode) {
+      if (notify_err) {
+        if (is_json_format) {
+          console.fatal({msg: 'Airbrake: Could not notify service.', error: notify_err.message || notify_err, stack: notify_err.stack});
+        } else {
+          console.fatal('Airbrake: Could not notify service:', notify_err.message || notify_err, notify_err.stack);
+        }
+      } else if (devMode) {
+        console.log('Airbrake: Dev mode, did not send.');
+      } else {
+        console.log('Airbrake: Notified service: ' + url);
+      }
+      console.processExit(1);
+    });
+  } else {
+    console.processExit(1);
+  }
 });
 
+console.processExit = function(code) {
+  if (fd) {
+    fd.end(null, null, function() {
+      process.exit(code);
+    });
+  } else {
+    process.exit(code);
+  }
+};
+
 console.setLevel = function(level) {
-	level = (level || '').toLowerCase();
-	assert(LOG_LEVELS[level] != null, 'Log level shoud be:'+Object.keys(LOG_LEVELS).join(', '));
-	log_level = LOG_LEVELS[level];
-	return console;
+  level = (level || '').toLowerCase();
+  assert(LOG_LEVELS[level] != null, 'Log level shoud be:'+Object.keys(LOG_LEVELS).join(', '));
+  log_level = LOG_LEVELS[level];
+  return console;
 };
 
 console.setAirbrake = function(_airbrake) {
-	if (_airbrake && _airbrake.constructor.name == 'Airbrake') {
-		airbrake = _airbrake;
-	}
-	return console;
+  if (_airbrake && _airbrake.constructor.name == 'Airbrake') {
+    airbrake = _airbrake;
+  }
+  return console;
+};
+
+console.setJSONFormat = function(json_format) {
+  is_json_format = json_format;
+  return console;
+};
+
+console.setFileBufferFlushTime = function(time) {
+  fd_buffer_flush_time = time;
+  if (fd_uncork_timer) {
+    clearInterval(fd_uncork_timer);
+    fd_uncork_timer = null;
+  }
+  if (fd) {
+    if (!time) {
+      fd.uncork();
+    } else {
+      fd.cork();
+      fd_uncork_timer = setInterval(function() {
+        fd.uncork();
+        fd.cork();
+      }, fd_buffer_flush_time);
+    }
+  }
+  return console;
 };
 
 console.setFile = function(file, callback) {
-	if (! file) {
-		callback();
-	} else {
-		stdout = fs.createWriteStream(file, {flags: 'a', mode: 0644, encoding: 'utf8'});
-		stdout.addListener('error', function(err) {
-			console.fatal('Log create', err);
-			callback(err);
-		}).addListener('open', function() {
-			filename = file;
-			process.__defineGetter__("stdout", function() {
-				return stdout;
-			});
-			process.__defineGetter__("stderr", function() {
-				return stdout;
-			});
-			console.log = function() {
-				if (process.stdout.writable) process.stdout.write(util.format.apply(this, arguments) + '\n');
-			};
-			if (callback) callback();
-		});
-	}
-	return console;
+  if (!file) {
+    if (callback) callback();
+  } else {
+    fd = fs.createWriteStream(file, {flags: 'a', mode: 0o644, encoding: 'utf8'});
+    fd.addListener('error', function(err) {
+      if (is_json_format) {
+        console.fatal({msg: 'Log create error', error: err});
+      } else {
+        console.fatal('Log create error', err);
+      }
+      if (callback) callback(err);
+    }).addListener('open', function() {
+      console.log = function(...args) {
+        if (fd.writable) fd.write(util.format(...args) + '\n');
+      };
+      console.log_ = function(str) {
+        if (fd.writable) fd.write(str + '\n');
+      };
+      filename = file;
+      console.setFileBufferFlushTime(fd_buffer_flush_time);
+      if (callback) callback();
+    });
+  }
+  return console;
 };
 
 console.reopen = function(callback) {
-	if (stdout) {
-		stdout.end();
-		console.setFile(filename, function() {
-			stdout.write('[' + getTime() + '] Reopen log file by SIGUSR1\n');
-			if (callback) callback();
-		});
-	}
+  if (fd) {
+    fd.end();
+    console.setFile(filename, function() {
+      console.log('Reopen log file by SIGUSR1');
+      if (callback) callback();
+    });
+  }
 };
 
 process.on('SIGUSR1', function() {
-	console.reopen();
+  console.reopen();
 });
 
 module.exports = console;
