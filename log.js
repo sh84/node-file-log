@@ -30,7 +30,7 @@ function log(level, args) {
       obj['pid'] = process.pid;
       obj['level'] = level.toUpperCase();
       obj['time'] = getTime();
-      console.log_(JSON.stringify(obj));
+      console.log(JSON.stringify(obj));
     } else {
       let s = '[' + getTime() + '] [' + level.toUpperCase() + '] ['+process.pid+'] ';
       console.log(s, args);
