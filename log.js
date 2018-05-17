@@ -106,6 +106,19 @@ console.setAirbrake = function(_airbrake) {
 
 console.setJSONFormat = function(json_format) {
   is_json_format = json_format;
+  if (json_format && !('toJSON' in Error.prototype)) {
+    Object.defineProperty(Error.prototype, 'toJSON', {
+      value() {
+        let alt = {};
+        Object.getOwnPropertyNames(this).forEach(key => {
+          alt[key] = this[key];
+        }, this);
+        return alt;
+      },
+      configurable: true,
+      writable: true
+    });
+  }
   return console;
 };
 
