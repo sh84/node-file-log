@@ -7,7 +7,7 @@ const LOG_LEVELS = {
   error: 3,
   fatal: 4
 };
-let log_level = 2;
+let curr_log_level = 2;
 let fd;
 let fd_uncork_timer;
 let fd_buffer_flush_time;
@@ -15,24 +15,23 @@ let filename;
 let airbrake;
 let is_json_format = false;
 
-for (let level in LOG_LEVELS) {
-  console[level] = (function(level) {
-    return function(...args) {
-      log(level, args);
-    };
-  })(level);
-} 
+for (let level of Object.keys(LOG_LEVELS)) {
+  let up_case_level = level.toUpperCase();
+  console[level] = function(...args) {
+    log(LOG_LEVELS[level], up_case_level, args);
+  };
+}
 
-function log(level, args) {
-  if (LOG_LEVELS[level] >= log_level) {
+function log(log_level, level_name, args) {
+  if (log_level >= curr_log_level) {
     if (is_json_format) {
       let obj = typeof args[0] === 'string' ? {msg: args[0]} : args[0];
       obj['pid'] = process.pid;
-      obj['level'] = level.toUpperCase();
+      obj['level'] = level_name;
       obj['time'] = getTime();
-      console.log(JSON.stringify(obj));
+      console.log_ ? console.log_(JSON.stringify(obj)) : console.log(JSON.stringify(obj))
     } else {
-      let s = '[' + getTime() + '] [' + level.toUpperCase() + '] ['+process.pid+'] ';
+      let s = '[' + getTime() + '] [' + level_name + '] ['+process.pid+'] ';
       console.log(s, args);
     }
   }
@@ -46,11 +45,11 @@ function getTime() {
 }
 
 function addZero(val) {
-  return val >= 10 ? val : '0'+val;
+  return (val >= 10 ? '' : '0')+val;
 }
 
 function add2Zero(val) {
-  return val >= 10 ? (val >= 100 ? val : '0'+val) : '00'+val;
+  return (val >= 10 ? (val >= 100 ? '' : '0') : '00')+val;
 }
 
 // All system error -> console.fatal
@@ -93,7 +92,7 @@ console.processExit = function(code) {
 console.setLevel = function(level) {
   level = (level || '').toLowerCase();
   assert(LOG_LEVELS[level] != null, 'Log level shoud be:'+Object.keys(LOG_LEVELS).join(', '));
-  log_level = LOG_LEVELS[level];
+  curr_log_level = LOG_LEVELS[level];
   return console;
 };
 
