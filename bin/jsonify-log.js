@@ -12,13 +12,27 @@ let readline_interface = readlineCreateInterface({
 
 readline_interface.on('line', function(line) {
   let input_data = line.trim();
+  let parsing_result = parseInputData(input_data);
+  console.log(parsing_result);
+});
+
+function parseInputData(input_data) {
   let parsed_data = getJSONData(input_data);
   if (parsed_data) {
-    console.log(formatObject(parsed_data));
+    return formatObject(parsed_data);
   } else {
-    console.log(input_data);
+    let simple_json_regexp = /\{.*\}/g;
+    let matches = input_data.match(simple_json_regexp);
+    if (matches) {
+      let matched_string = matches[0];
+      let result_srting = input_data.replace(matched_string, '');
+      result_srting += parseInputData(matches[0]);
+      return result_srting;
+    } else {
+      return input_data;
+    }
   }
-});
+}
 
 function getJSONData(item) {
   try {
