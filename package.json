@@ -19,5 +19,8 @@
   "optionalDependencies": {},
   "engines": {
     "node": ">=6.0.0"
+  },
+  "bin": {
+    "jsonify-log": "./bin/jsonify-log.js"
   }
 }
