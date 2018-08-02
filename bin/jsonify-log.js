@@ -16,21 +16,34 @@ readline_interface.on('line', function(line) {
   console.log(parsing_result);
 });
 
-function parseInputData(input_data) {
+function parseInputData(input_data, recursion_call) {
   let parsed_data = getJSONData(input_data);
   if (parsed_data) {
     return formatObject(parsed_data);
   } else {
-    let simple_json_regexp = /\{.*\}/g;
-    let matches = input_data.match(simple_json_regexp);
-    if (matches) {
-      let matched_string = matches[0];
-      let result_srting = input_data.replace(matched_string, '');
-      result_srting += parseInputData(matches[0]);
-      return result_srting;
-    } else {
+    // If JSON parsing failed in recursion call
+    // Return the input_data to avoid stack size exceeded errors
+    if (recursion_call) {
       return input_data;
     }
+    let result_string = input_data;
+    let simple_json_regexp = /\{.*\}/g;
+    // Lookig for something similar to JSON
+    let matches = input_data.match(simple_json_regexp);
+    // If matches found
+    if (matches) {
+      let parsing_result = [];
+      // Parse each match
+      for (let matched_string of matches) {
+        parsing_result.push(parseInputData(matched_string.trim(), true));
+      }
+      let parsed_result_index = 0;
+      // Replace each match with it parsing result
+      result_string = result_string.replace(simple_json_regexp, function() {
+        return parsing_result[parsed_result_index++];
+      });
+    }
+    return result_string;
   }
 }
 
