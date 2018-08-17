@@ -97,9 +97,7 @@ console.setLevel = function(level) {
 };
 
 console.setAirbrake = function(_airbrake) {
-  if (_airbrake && _airbrake.constructor.name == 'Airbrake') {
-    airbrake = _airbrake;
-  }
+  if (_airbrake) airbrake = _airbrake;
   return console;
 };
 
