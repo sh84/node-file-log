@@ -101,6 +101,33 @@ console.setAirbrake = function(_airbrake) {
   return console;
 };
 
+/**
+ * Make sure that next packages are installed before using airbrake notifications:
+ * `request`, `airbrake-js`
+ * @param {Object} conf - Airbrake configuration, will be passed without changingto `airbrake-js`
+ * @param {string} [notify_dev_env=false] - Send notifications to Airbrake using `dev` envs
+ * @return {Console}
+ */
+console.setAirbrakeByOptions = function(conf, notify_dev_env = false) {
+  if (conf.projectId && conf.projectKey) {
+    require('request');
+    const AirbrakeClient = require('airbrake-js');
+    let client = new AirbrakeClient(conf);
+
+    client.addFilter(notice => {
+      if (!notice.context.environment.toLowerCase().startsWith('dev') || notify_dev_env) {
+        return notice;
+      }
+      return null;
+    });
+
+    airbrake = client;
+  } else {
+    console.error('Airbrake is not set. Check config: projectId, projectKey');
+  }
+  return console;
+};
+
 console.setJSONFormat = function(json_format) {
   is_json_format = json_format;
   if (json_format && !('toJSON' in Error.prototype)) {
