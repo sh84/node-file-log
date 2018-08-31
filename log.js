@@ -14,6 +14,7 @@ let fd_buffer_flush_time;
 let filename;
 let airbrake;
 let is_json_format = false;
+let is_fatal = false;
 
 for (let level of Object.keys(LOG_LEVELS)) {
   let up_case_level = level.toUpperCase();
@@ -54,30 +55,57 @@ function add2Zero(val) {
 
 // All system error -> console.fatal
 process.on('uncaughtException', function(err) {
+  is_fatal = true;
   if (is_json_format) {
     console.fatal({msg: 'Uncaught exception', error: err.message || err, stack: err.stack});
   } else {
     console.fatal('Uncaught exception:', err.message || err, err.stack);
   }
-  if (airbrake) {
-    airbrake.notify(err, function(notify_err, url, devMode) {
-      if (notify_err) {
-        if (is_json_format) {
-          console.fatal({msg: 'Airbrake: Could not notify service.', error: notify_err.message || notify_err, stack: notify_err.stack});
-        } else {
-          console.fatal('Airbrake: Could not notify service:', notify_err.message || notify_err, notify_err.stack);
-        }
-      } else if (devMode) {
-        console.log('Airbrake: Dev mode, did not send.');
-      } else {
-        console.log('Airbrake: Notified service: ' + url);
-      }
-      console.processExit(1);
-    });
+  if (console._airbrake) {
+    sendAirbrake(err);
   } else {
     console.processExit(1);
   }
 });
+process.on('unhandledRejection', function(err) {
+  is_fatal = true;
+  if (is_json_format) {
+    console.fatal({msg: 'Uncaught rejection', error: err.message || err, stack: err.stack});
+  } else {
+    console.fatal('Uncaught rejection:', err.message || err, err.stack);
+  }
+  if (console._airbrake) {
+    sendAirbrake(err);
+  } else {
+    console.processExit(1);
+  }
+});
+
+function sendAirbrake(err) {
+  let p = console._airbrake.notify(err, function(notify_err, url, devMode) {
+    if (notify_err) {
+      if (is_json_format) {
+        console.fatal({msg: 'Airbrake: Could not notify service.', error: notify_err.message || notify_err, stack: notify_err.stack});
+      } else {
+        console.fatal('Airbrake: Could not notify service:', notify_err.message || notify_err, notify_err.stack);
+      }
+    } else if (devMode) {
+      console.log('Airbrake: Dev mode, did not send.');
+    } else {
+      console.log('Airbrake: Notified service: ' + url);
+    }
+    console.processExit(1);
+  });
+  if (Promise.prototype.isPrototypeOf(p)) p.then(() => {
+    console.processExit(1);
+  }, (notify_err) => {
+    if (is_json_format) {
+      console.fatal({msg: 'Airbrake: Could not notify service.', error: notify_err.message || notify_err, stack: notify_err.stack});
+    } else {
+      console.fatal('Airbrake: Could not notify service:', notify_err.message || notify_err, notify_err.stack);
+    }
+  });
+}
 
 console.processExit = function(code) {
   if (fd) {
@@ -97,7 +125,7 @@ console.setLevel = function(level) {
 };
 
 console.setAirbrake = function(_airbrake) {
-  if (_airbrake) airbrake = _airbrake;
+  if (_airbrake) console._airbrake = _airbrake;
   return console;
 };
 
@@ -112,16 +140,19 @@ console.setAirbrakeByOptions = function(conf, notify_dev_env = false) {
   if (conf.projectId && conf.projectKey) {
     require('request');
     const AirbrakeClient = require('airbrake-js');
-    let client = new AirbrakeClient(conf);
-
-    client.addFilter(notice => {
-      if (!notice.context.environment.toLowerCase().startsWith('dev') || notify_dev_env) {
-        return notice;
+    if (typeof conf.unwrapConsole == 'undefined') conf.unwrapConsole = true;
+    console._airbrake = new AirbrakeClient(conf);
+    console._airbrake.addFilter(notice => {
+      if (notice.context.environment.toLowerCase().startsWith('dev') && !notify_dev_env) {
+        return null;
       }
-      return null;
+      for (let [key, val] of Object.entries(process.env)) {
+        if (!~key.toLowerCase().indexOf('npm_') && !notice.environment[key]) 
+          notice.environment[key] = val;
+      }
+      if (is_fatal) notice.context.severity = 'critical';
+      return notice;
     });
-
-    airbrake = client;
   } else {
     console.error('Airbrake is not set. Check config: projectId, projectKey');
   }
