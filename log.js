@@ -133,21 +133,23 @@ console.setAirbrake = function(_airbrake) {
  * Make sure that next packages are installed before using airbrake notifications:
  * `request`, `airbrake-js`
  * @param {Object} conf - Airbrake configuration, will be passed without changingto `airbrake-js`
- * @param {string} [notify_dev_env=false] - Send notifications to Airbrake using `dev` envs
+ * @param {String[]} [del_env_keys=[]] - Don't send process.env keys matching each del_env_keys pattern
+ * @param {Boolean} [notify_dev_env=false] - Send notifications to Airbrake using `dev` envs
  * @return {Console}
  */
-console.setAirbrakeByOptions = function(conf, notify_dev_env = false) {
+console.setAirbrakeByOptions = function(conf, del_env_keys = [], notify_dev_env = false) {
   if (conf.projectId && conf.projectKey) {
     require('request');
     const AirbrakeClient = require('airbrake-js');
     if (typeof conf.unwrapConsole == 'undefined') conf.unwrapConsole = true;
     console._airbrake = new AirbrakeClient(conf);
+    del_env_keys = del_env_keys.map(pattern => new RegExp(pattern, 'i'));
     console._airbrake.addFilter(notice => {
       if (notice.context.environment.toLowerCase().startsWith('dev') && !notify_dev_env) {
         return null;
       }
       for (let [key, val] of Object.entries(process.env)) {
-        if (!~key.toLowerCase().indexOf('npm_') && !notice.environment[key]) 
+        if (!del_env_keys.some(r => r.test(key)) && !notice.environment[key]) 
           notice.environment[key] = val;
       }
       if (is_fatal) notice.context.severity = 'critical';
